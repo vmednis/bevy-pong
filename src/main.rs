@@ -17,7 +17,9 @@ fn main() {
             CoreStage::PreUpdate,
             handle_inputs.system().after("input_decoder"),
         )
-        .add_system(movement.system())
+        .add_system(movement.system().label("movement"))
+        .add_system(paddle_limiter.system().after("movement"))
+        .add_system(ball_limiter.system().after("movement"))
         .run();
 }
 
@@ -150,5 +152,59 @@ fn movement(time: Res<Time>, mut query: Query<(&mut Transform, &Velocity)>) {
 
     for (mut transform, velocity) in query.iter_mut() {
         transform.translation += velocity.0.extend(0.0) * dt;
+    }
+}
+
+fn paddle_limiter(mut query: Query<&mut Transform, With<Paddle>>) {
+    const PADDLE_HALF_HEIGHT: f32 = 32.0;
+    const SCREEN_HALF_HEIGHT: f32 = 360.0;
+
+    for mut transform in query.iter_mut() {
+        if transform.translation.y > SCREEN_HALF_HEIGHT - PADDLE_HALF_HEIGHT {
+            transform.translation.y = SCREEN_HALF_HEIGHT - PADDLE_HALF_HEIGHT;
+        }
+
+        if transform.translation.y < -SCREEN_HALF_HEIGHT + PADDLE_HALF_HEIGHT {
+            transform.translation.y = -SCREEN_HALF_HEIGHT + PADDLE_HALF_HEIGHT;
+        }
+    }
+}
+
+fn ball_limiter(mut query: Query<(&mut Transform, &mut Velocity), With<Ball>>) {
+    const BALL_RADIUS: f32 = 8.0;
+    const SCREEN_HALF_HEIGHT: f32 = 360.0;
+    const SCREEN_HALF_WIDTH: f32 = 640.0;
+
+    for (mut transform, mut velocity) in query.iter_mut() {
+        //Bounce at top
+        let mut flip_vert = false;
+        if transform.translation.y > SCREEN_HALF_HEIGHT - BALL_RADIUS {
+            transform.translation.y = SCREEN_HALF_HEIGHT - BALL_RADIUS;
+            flip_vert = true;
+        }
+
+        if transform.translation.y < -SCREEN_HALF_HEIGHT + BALL_RADIUS {
+            transform.translation.y = -SCREEN_HALF_HEIGHT + BALL_RADIUS;
+            flip_vert = true;
+        }
+
+        if flip_vert {
+            velocity.0.y = -velocity.0.y;
+        }
+
+        //Recenter at edges
+        let mut ball_out = false;
+        if transform.translation.x < -SCREEN_HALF_WIDTH - BALL_RADIUS {
+            ball_out = true;
+        }
+
+        if transform.translation.x > SCREEN_HALF_WIDTH + BALL_RADIUS {
+            ball_out = true;
+        }
+
+        if ball_out {
+            transform.translation = Vec3::ZERO;
+            velocity.0.x = -velocity.0.x;
+        }
     }
 }
