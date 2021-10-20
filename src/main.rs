@@ -20,6 +20,7 @@ fn main() {
         .add_system(movement.system().label("movement"))
         .add_system(paddle_limiter.system().after("movement"))
         .add_system(ball_limiter.system().after("movement"))
+        .add_system(ball_paddle_collider.system().after("movement"))
         .run();
 }
 
@@ -100,7 +101,7 @@ fn setup(mut commands: Commands) {
             Transform::default(),
         ))
         .insert(Ball)
-        .insert(Velocity(Vec2::new(100.0, 100.0)));
+        .insert(Velocity(Vec2::new(150.0, 150.0)));
 
     let mut paddle_left_transform = Transform::default();
     paddle_left_transform.translation.x = -500.0;
@@ -139,10 +140,10 @@ fn handle_inputs(inputs: Res<Inputs>, mut query: Query<(&Paddle, &mut Velocity)>
 
         velocity.0.y = 0.0;
         if input.up {
-            velocity.0.y += 400.0
+            velocity.0.y += 600.0
         };
         if input.down {
-            velocity.0.y -= 400.0
+            velocity.0.y -= 600.0
         };
     }
 }
@@ -205,6 +206,30 @@ fn ball_limiter(mut query: Query<(&mut Transform, &mut Velocity), With<Ball>>) {
         if ball_out {
             transform.translation = Vec3::ZERO;
             velocity.0.x = -velocity.0.x;
+        }
+    }
+}
+
+fn ball_paddle_collider(
+    mut balls: Query<(&Transform, &mut Velocity), With<Ball>>,
+    paddles: Query<&Transform, With<Paddle>>,
+) {
+    const BALL_DIAMETER: f32 = 8.0;
+    const PADDLE_WIDTH: f32 = 16.0;
+    const PADDLE_HEIGHT: f32 = 64.0;
+
+    for (ball_transform, mut ball_velocity) in balls.iter_mut() {
+        for paddle_transform in paddles.iter() {
+            let ball_pos = ball_transform.translation;
+            let paddle_pos = paddle_transform.translation;
+
+            if ball_pos.x < paddle_pos.x + PADDLE_WIDTH
+                && ball_pos.x + BALL_DIAMETER > paddle_pos.x
+                && ball_pos.y > paddle_pos.y - PADDLE_HEIGHT
+                && ball_pos.y - BALL_DIAMETER < paddle_pos.y
+            {
+                ball_velocity.0.x = -ball_velocity.0.x;
+            }
         }
     }
 }
